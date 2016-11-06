@@ -557,11 +557,11 @@
   #define Z_PROBE_ALLEN_KEY_DEPLOY_3_Z Z_PROBE_ALLEN_KEY_DEPLOY_2_Z
   #define Z_PROBE_ALLEN_KEY_DEPLOY_3_FEEDRATE XY_PROBE_SPEED
 
-  #define Z_PROBE_ALLEN_KEY_STOW_DEPTH 10
+  #define Z_PROBE_ALLEN_KEY_STOW_DEPTH 15
   // Move the probe into position
-  #define Z_PROBE_ALLEN_KEY_STOW_1_X 50.0
-  #define Z_PROBE_ALLEN_KEY_STOW_1_Y 71.0
-  #define Z_PROBE_ALLEN_KEY_STOW_1_Z 32.45
+  #define Z_PROBE_ALLEN_KEY_STOW_1_X 54.0
+  #define Z_PROBE_ALLEN_KEY_STOW_1_Y 73.0
+  #define Z_PROBE_ALLEN_KEY_STOW_1_Z 24.86
   #define Z_PROBE_ALLEN_KEY_STOW_1_FEEDRATE XY_PROBE_SPEED
   // Move the nozzle down further to push the probe into retracted position.
   #define Z_PROBE_ALLEN_KEY_STOW_2_X  Z_PROBE_ALLEN_KEY_STOW_1_X
