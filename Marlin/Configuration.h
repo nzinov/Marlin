@@ -636,11 +636,11 @@
   #define Z_PROBE_ALLEN_KEY_DEPLOY_3_Z Z_PROBE_ALLEN_KEY_DEPLOY_2_Z
   #define Z_PROBE_ALLEN_KEY_DEPLOY_3_FEEDRATE XY_PROBE_SPEED
 
-  #define Z_PROBE_ALLEN_KEY_STOW_DEPTH 15
+  #define Z_PROBE_ALLEN_KEY_STOW_DEPTH 11
   // Move the probe into position
   #define Z_PROBE_ALLEN_KEY_STOW_1_X 54.0
   #define Z_PROBE_ALLEN_KEY_STOW_1_Y 73.0
-  #define Z_PROBE_ALLEN_KEY_STOW_1_Z 24.86
+  #define Z_PROBE_ALLEN_KEY_STOW_1_Z 26.86
   #define Z_PROBE_ALLEN_KEY_STOW_1_FEEDRATE XY_PROBE_SPEED
   // Move the nozzle down further to push the probe into retracted position.
   #define Z_PROBE_ALLEN_KEY_STOW_2_X  Z_PROBE_ALLEN_KEY_STOW_1_X
@@ -721,7 +721,7 @@
  *     But: `M851 Z+1` with a CLEARANCE of 2  =>  2mm from bed to nozzle.
  */
 #define Z_CLEARANCE_DEPLOY_PROBE   50 // Z Clearance for Deploy/Stow
-#define Z_CLEARANCE_BETWEEN_PROBES  5 // Z Clearance between probe points
+#define Z_CLEARANCE_BETWEEN_PROBES  15 // Z Clearance between probe points
 
 //
 // For M851 give a range for adjusting the Z probe offset

@@ -67,8 +67,8 @@ ARDUINO_VERSION      ?= 106
 AVR_TOOLS_PATH ?=
 
 #Programmer configuration
-UPLOAD_RATE        ?= 250000
-AVRDUDE_PROGRAMMER ?= arduino
+UPLOAD_RATE        ?= 115200
+AVRDUDE_PROGRAMMER ?= wiring
 # on most linuxes this will be /dev/ttyACM0 or /dev/ttyACM1 
 UPLOAD_PORT        ?= /dev/kossel
 
