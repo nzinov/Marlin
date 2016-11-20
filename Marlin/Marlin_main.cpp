@@ -31,75 +31,19 @@
  *  - http://reprap.org/pipermail/reprap-dev/2011-May/003323.html
  */
 
-#include "Marlin.h"
-
-#include "ultralcd.h"
-#include "planner.h"
-#include "stepper.h"
-#include "endstops.h"
-#include "temperature.h"
-#include "cardreader.h"
-#include "configuration_store.h"
-#include "language.h"
-#include "pins_arduino.h"
-#include "math.h"
-#include "nozzle.h"
-#include "duration_t.h"
-#include "types.h"
-
-#if HAS_ABL
-  #include "vector_3.h"
-  #if ENABLED(AUTO_BED_LEVELING_LINEAR)
-    #include "qr_solve.h"
-  #endif
-#elif ENABLED(MESH_BED_LEVELING)
-  #include "mesh_bed_leveling.h"
-#endif
-
-#if ENABLED(BEZIER_CURVE_SUPPORT)
-  #include "planner_bezier.h"
-#endif
-
-#if HAS_BUZZER && DISABLED(LCD_USE_I2C_BUZZER)
-  #include "buzzer.h"
-#endif
-
-#if ENABLED(USE_WATCHDOG)
-  #include "watchdog.h"
-#endif
-
-#if ENABLED(BLINKM)
-  #include "blinkm.h"
-  #include "Wire.h"
-#endif
-
-#if HAS_SERVOS
-  #include "servo.h"
-#endif
-
-#if HAS_DIGIPOTSS
-  #include <SPI.h>
-#endif
-
-#if ENABLED(DAC_STEPPER_CURRENT)
-  #include "stepper_dac.h"
-#endif
-
-#if ENABLED(EXPERIMENTAL_I2CBUS)
-  #include "twibus.h"
-#endif
-
 /**
- * Look here for descriptions of G-codes:
+ * -----------------
+ * G-Codes in Marlin
+ * -----------------
+ *
+ * Helpful G-code references:
  *  - http://linuxcnc.org/handbook/gcode/g-code.html
  *  - http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
  *
- * Help us document these G-codes online:
- *  - https://github.com/MarlinFirmware/Marlin/wiki/G-Code-in-Marlin
+ * Help to document Marlin's G-codes online:
  *  - http://reprap.org/wiki/G-code
+ *  - https://github.com/MarlinFirmware/MarlinDocumentation
  *
- * -----------------
- * Implemented Codes
  * -----------------
  *
  * "G" Codes
@@ -272,6 +216,68 @@
  * T0-T3 - Select an extruder (tool) by index: "T<n> F<units/min>"
  *
  */
+
+#include "Marlin.h"
+
+#include "ultralcd.h"
+#include "planner.h"
+#include "stepper.h"
+#include "endstops.h"
+#include "temperature.h"
+#include "cardreader.h"
+#include "configuration_store.h"
+#include "language.h"
+#include "pins_arduino.h"
+#include "math.h"
+#include "nozzle.h"
+#include "duration_t.h"
+#include "types.h"
+
+#if HAS_ABL
+  #include "vector_3.h"
+  #if ENABLED(AUTO_BED_LEVELING_LINEAR)
+    #include "qr_solve.h"
+  #endif
+#elif ENABLED(MESH_BED_LEVELING)
+  #include "mesh_bed_leveling.h"
+#endif
+
+#if ENABLED(BEZIER_CURVE_SUPPORT)
+  #include "planner_bezier.h"
+#endif
+
+#if HAS_BUZZER && DISABLED(LCD_USE_I2C_BUZZER)
+  #include "buzzer.h"
+#endif
+
+#if ENABLED(USE_WATCHDOG)
+  #include "watchdog.h"
+#endif
+
+#if ENABLED(BLINKM)
+  #include "blinkm.h"
+  #include "Wire.h"
+#endif
+
+#if HAS_SERVOS
+  #include "servo.h"
+#endif
+
+#if HAS_DIGIPOTSS
+  #include <SPI.h>
+#endif
+
+#if ENABLED(DAC_STEPPER_CURRENT)
+  #include "stepper_dac.h"
+#endif
+
+#if ENABLED(EXPERIMENTAL_I2CBUS)
+  #include "twibus.h"
+#endif
+
+#if ENABLED(ENDSTOP_INTERRUPTS_FEATURE)
+  #include "endstop_interrupts.h"
+#endif
 
 #if ENABLED(M100_FREE_MEMORY_WATCHER)
   void gcode_M100();
@@ -2672,16 +2678,26 @@ static void homeaxis(AxisEnum axis) {
 
   #if ENABLED(DIRECT_MIXING_IN_G1)
     // Get mixing parameters from the GCode
-    // Factors that are left out are set to 0
     // The total "must" be 1.0 (but it will be normalized)
+    // If no mix factors are given, the old mix is preserved
     void gcode_get_mix() {
       const char* mixing_codes = "ABCDHI";
-      for (int i = 0; i < MIXING_STEPPERS; i++) {
-        float v = code_seen(mixing_codes[i]) ? code_value_float() : 0.0;
-        NOLESS(v, 0.0);
-        mixing_factor[i] = RECIPROCAL(v);
+      byte mix_bits = 0;
+      for (uint8_t i = 0; i < MIXING_STEPPERS; i++) {
+        if (code_seen(mixing_codes[i])) {
+          SBI(mix_bits, i);
+          float v = code_value_float();
+          NOLESS(v, 0.0);
+          mixing_factor[i] = RECIPROCAL(v);
+        }
       }
-      normalize_mix();
+      // If any mixing factors were included, clear the rest
+      // If none were included, preserve the last mix
+      if (mix_bits) {
+        for (uint8_t i = 0; i < MIXING_STEPPERS; i++)
+          if (!TEST(mix_bits, i)) mixing_factor[i] = 0.0;
+        normalize_mix();
+      }
     }
   #endif
 
@@ -4241,8 +4257,12 @@ inline void gcode_G28() {
    *     S = Stows the probe if 1 (default=1)
    */
   inline void gcode_G30() {
-    float X_probe_location = code_seen('X') ? code_value_axis_units(X_AXIS) : current_position[X_AXIS] + X_PROBE_OFFSET_FROM_EXTRUDER;
-    float Y_probe_location = code_seen('Y') ? code_value_axis_units(Y_AXIS) : current_position[Y_AXIS] + Y_PROBE_OFFSET_FROM_EXTRUDER;
+    float X_probe_location = code_seen('X') ? code_value_axis_units(X_AXIS) : current_position[X_AXIS] + X_PROBE_OFFSET_FROM_EXTRUDER,
+          Y_probe_location = code_seen('Y') ? code_value_axis_units(Y_AXIS) : current_position[Y_AXIS] + Y_PROBE_OFFSET_FROM_EXTRUDER;
+
+    float pos[XYZ] = { X_probe_location, Y_probe_location, LOGICAL_Z_POSITION(0) };
+    if (!position_is_reachable(pos, true)) return;
+
     bool stow = code_seen('S') ? code_value_bool() : true;
 
     // Disable leveling so the planner won't mess with us
@@ -4252,17 +4272,14 @@ inline void gcode_G28() {
 
     setup_for_endstop_or_probe_move();
 
-    float measured_z = probe_pt(X_probe_location,
-                                Y_probe_location,
-                                stow, 1);
+    float measured_z = probe_pt(X_probe_location, Y_probe_location, stow, 1);
 
     SERIAL_PROTOCOLPGM("Bed X: ");
-    SERIAL_PROTOCOL(current_position[X_AXIS] + X_PROBE_OFFSET_FROM_EXTRUDER + 0.0001);
+    SERIAL_PROTOCOL(X_probe_location + 0.0001);
     SERIAL_PROTOCOLPGM(" Y: ");
-    SERIAL_PROTOCOL(current_position[Y_AXIS] + Y_PROBE_OFFSET_FROM_EXTRUDER + 0.0001);
+    SERIAL_PROTOCOL(Y_probe_location + 0.0001);
     SERIAL_PROTOCOLPGM(" Z: ");
-    SERIAL_PROTOCOL(measured_z + 0.0001);
-    SERIAL_EOL;
+    SERIAL_PROTOCOLLN(measured_z + 0.0001);
 
     clean_up_after_endstop_or_probe_move();
 
@@ -5078,6 +5095,10 @@ inline void gcode_M104() {
 
     if (code_value_temp_abs() > thermalManager.degHotend(target_extruder)) LCD_MESSAGEPGM(MSG_HEATING);
   }
+  
+  #if ENABLED(AUTOTEMP)
+    planner.autotemp_M104_M109();
+  #endif
 }
 
 #if HAS_TEMP_HOTEND || HAS_TEMP_BED
@@ -5273,7 +5294,7 @@ inline void gcode_M109() {
   }
 
   #if ENABLED(AUTOTEMP)
-    planner.autotemp_M109();
+    planner.autotemp_M104_M109();
   #endif
 
   #if TEMP_RESIDENCY_TIME > 0
@@ -7207,9 +7228,8 @@ inline void gcode_M907() {
     static bool case_light_on
       #if ENABLED(CASE_LIGHT_DEFAULT_ON)
         = true
-      #else
+      #endif
     ;
-    #endif
     static uint8_t case_light_brightness = 255;
     if (code_seen('P')) case_light_brightness = code_value_byte();
     if (code_seen('S')) {
@@ -9591,7 +9611,7 @@ void disable_all_steppers() {
 void manage_inactivity(bool ignore_stepper_queue/*=false*/) {
 
   #if ENABLED(FILAMENT_RUNOUT_SENSOR)
-    if ((IS_SD_PRINTING || print_job_timer.isRunning()) && !(READ(FIL_RUNOUT_PIN) ^ FIL_RUNOUT_INVERTING))
+    if ((IS_SD_PRINTING || print_job_timer.isRunning()) && (READ(FIL_RUNOUT_PIN) == FIL_RUNOUT_INVERTING))
       handle_filament_runout();
   #endif
 
@@ -9999,6 +10019,10 @@ void setup() {
   #if ENABLED(EXPERIMENTAL_I2CBUS) && I2C_SLAVE_ADDRESS > 0
     i2c.onReceive(i2c_on_receive);
     i2c.onRequest(i2c_on_request);
+  #endif
+
+  #if ENABLED(ENDSTOP_INTERRUPTS_FEATURE)
+    setup_endstop_interrupts();
   #endif
 }
 
