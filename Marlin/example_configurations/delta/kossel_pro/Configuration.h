@@ -22,8 +22,6 @@
 
 /**
  * Example configuration file for OpenBeam Kossel Pro
- * tested on 2015-05-19 by @Wackerbarth
- * using Arduino 1.6.5 (Mac)
  */
 
 /**
@@ -397,9 +395,13 @@
 // @section machine
 
 // Uncomment one of these options to enable CoreXY, CoreXZ, or CoreYZ kinematics
+// either in the usual order or reversed
 //#define COREXY
 //#define COREXZ
 //#define COREYZ
+//#define COREYX
+//#define COREZX
+//#define COREZY
 
 //===========================================================================
 //============================== Delta Settings =============================
@@ -440,6 +442,9 @@
   // If needed, adjust the X, Y, Z calibration coordinates
   // in ultralcd.cpp@lcd_delta_calibrate_menu()
   //#define DELTA_CALIBRATION_MENU
+
+  // After homing move down to a height where XY movement is unconstrained
+  #define DELTA_HOME_TO_SAFE_ZONE
 
   //#define DELTA_ENDSTOP_ADJ { 0, 0, 0 }
 
@@ -835,6 +840,11 @@
     #define MBL_Z_STEP 0.025  // Step size while manually probing Z axis.
   #endif  // MANUAL_BED_LEVELING
 
+  // Gradually reduce leveling correction until a set height is reached,
+  // at which point movement will be level to the machine's XY plane.
+  // The height can be set with M420 Z<height>
+  #define ENABLE_LEVELING_FADE_HEIGHT
+
 #endif  // MESH_BED_LEVELING
 
 //===========================================================================
@@ -893,6 +903,13 @@
 
   // Probe along the Y axis, advancing X after each column
   //#define PROBE_Y_FIRST
+
+  #if ENABLED(AUTO_BED_LEVELING_BILINEAR)
+    // Gradually reduce leveling correction until a set height is reached,
+    // at which point movement will be level to the machine's XY plane.
+    // The height can be set with M420 Z<height>
+    #define ENABLE_LEVELING_FADE_HEIGHT
+  #endif
 
 #elif ENABLED(AUTO_BED_LEVELING_3POINT)
 

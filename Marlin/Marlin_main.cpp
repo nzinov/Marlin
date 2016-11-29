@@ -530,6 +530,16 @@ static uint8_t target_extruder;
   ;
 #endif
 
+#if ENABLED(ULTIPANEL) && HAS_CASE_LIGHT
+  bool case_light_on =
+    #if ENABLED(CASE_LIGHT_DEFAULT_ON)
+      true
+    #else
+      false
+    #endif
+  ;
+#endif
+
 #if ENABLED(DELTA)
 
   #define SIN_60 0.8660254037844386
@@ -870,27 +880,6 @@ void setup_homepin(void) {
     WRITE(HOME_PIN, HIGH);
   #endif
 }
-
-#if HAS_CASE_LIGHT
-
-  void setup_case_light() {
-    digitalWrite(CASE_LIGHT_PIN,
-      #if ENABLED(CASE_LIGHT_DEFAULT_ON)
-        255
-      #else
-        0
-      #endif
-    );
-    analogWrite(CASE_LIGHT_PIN,
-      #if ENABLED(CASE_LIGHT_DEFAULT_ON)
-        255
-      #else
-        0
-      #endif
-    );
-  }
-
-#endif
 
 void setup_powerhold() {
   #if HAS_SUICIDE
@@ -2023,9 +2012,7 @@ static void clean_up_after_endstop_or_probe_move() {
     // When deploying make sure BLTOUCH is not already triggered
     #if ENABLED(BLTOUCH)
       if (deploy && TEST_BLTOUCH()) { stop(); return true; }
-    #endif
-
-    #if ENABLED(Z_PROBE_SLED)
+    #elif ENABLED(Z_PROBE_SLED)
       if (axis_unhomed_error(true, false, false)) { stop(); return true; }
     #elif ENABLED(Z_PROBE_ALLEN_KEY)
       if (axis_unhomed_error(true, true,  true )) { stop(); return true; }
@@ -2108,7 +2095,6 @@ static void clean_up_after_endstop_or_probe_move() {
 
     // Tell the planner where we actually are
     SYNC_PLAN_POSITION_KINEMATIC();
-
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (DEBUGGING(LEVELING)) DEBUG_POS("<<< do_probe_move", current_position);
@@ -2263,6 +2249,30 @@ static void clean_up_after_endstop_or_probe_move() {
     #endif
   }
 
+  #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
+
+    void set_z_fade_height(const float zfh) {
+      planner.z_fade_height = zfh;
+      planner.inverse_z_fade_height = RECIPROCAL(zfh);
+
+      if (
+        #if ENABLED(MESH_BED_LEVELING)
+          mbl.active()
+        #else
+          planner.abl_enabled
+        #endif
+      ) {
+        set_current_from_steppers_for_axis(
+          #if ABL_PLANAR
+            ALL_AXES
+          #else
+            Z_AXIS
+          #endif
+        );
+      }
+    }
+
+  #endif // LEVELING_FADE_HEIGHT
 
   /**
    * Reset calibration results to zero.
@@ -3068,7 +3078,7 @@ inline void gcode_G4() {
       SERIAL_ECHOLNPGM("Delta");
     #elif IS_SCARA
       SERIAL_ECHOLNPGM("SCARA");
-    #elif ENABLED(COREXY) || ENABLED(COREXZ) || ENABLED(COREYZ)
+    #elif IS_CORE
       SERIAL_ECHOLNPGM("Core");
     #else
       SERIAL_ECHOLNPGM("Cartesian");
@@ -3438,7 +3448,7 @@ inline void gcode_G28() {
 
   endstops.not_homing();
 
-  #if ENABLED(DELTA)
+  #if ENABLED(DELTA) && ENABLED(DELTA_HOME_TO_SAFE_ZONE)
     // move to a height where we can use the full xy-area
     do_blocking_move_to_z(delta_clip_start_height);
   #endif
@@ -3515,7 +3525,7 @@ inline void gcode_G28() {
 
   inline void _mbl_goto_xy(float x, float y) {
     float old_feedrate_mm_s = feedrate_mm_s;
-    feedrate_mm_s = homing_feedrate_mm_s[X_AXIS];
+    feedrate_mm_s = homing_feedrate_mm_s[Z_AXIS];
 
     current_position[Z_AXIS] = MESH_HOME_SEARCH_Z
       #if Z_CLEARANCE_BETWEEN_PROBES > Z_HOMING_HEIGHT
@@ -3526,11 +3536,13 @@ inline void gcode_G28() {
     ;
     line_to_current_position();
 
+    feedrate_mm_s = MMM_TO_MMS(XY_PROBE_SPEED);
     current_position[X_AXIS] = LOGICAL_X_POSITION(x);
     current_position[Y_AXIS] = LOGICAL_Y_POSITION(y);
     line_to_current_position();
 
     #if Z_CLEARANCE_BETWEEN_PROBES > 0 || Z_HOMING_HEIGHT > 0
+      feedrate_mm_s = homing_feedrate_mm_s[Z_AXIS];
       current_position[Z_AXIS] = LOGICAL_Z_POSITION(MESH_HOME_SEARCH_Z);
       line_to_current_position();
     #endif
@@ -5827,7 +5839,7 @@ inline void gcode_M115() {
 
     // PROGRESS (M530 S L, M531 <file>, M532 X L)
     SERIAL_PROTOCOLPGM("Cap:");
-    SERIAL_PROTOCOLPGM("PROGRESS:0");
+    SERIAL_PROTOCOLLNPGM("PROGRESS:0");
 
     // AUTOLEVEL (G29)
     SERIAL_PROTOCOLPGM("Cap:");
@@ -5893,6 +5905,58 @@ inline void gcode_M120() { endstops.enable_globally(true); }
  * M121: Disable endstops and set non-homing endstop state to "disabled"
  */
 inline void gcode_M121() { endstops.enable_globally(false); }
+
+#if ENABLED(HAVE_TMC2130DRIVER)
+
+  /**
+   * M122: Output Trinamic TMC2130 status to serial output. Very bad formatting.
+   */
+
+  static void tmc2130_report(Trinamic_TMC2130 &stepr, const char *name) {
+    stepr.read_STAT();
+    SERIAL_PROTOCOL(name);
+    SERIAL_PROTOCOL(": ");
+    stepr.isReset() ? SERIAL_PROTOCOLPGM("RESET ") : SERIAL_PROTOCOLPGM("----- ");
+    stepr.isError() ? SERIAL_PROTOCOLPGM("ERROR ") : SERIAL_PROTOCOLPGM("----- ");
+    stepr.isStallguard() ? SERIAL_PROTOCOLPGM("SLGRD ") : SERIAL_PROTOCOLPGM("----- ");
+    stepr.isStandstill() ? SERIAL_PROTOCOLPGM("STILL ") : SERIAL_PROTOCOLPGM("----- ");
+    SERIAL_PROTOCOLLN(stepr.debug());
+  }
+
+  inline void gcode_M122() {
+    SERIAL_PROTOCOLLNPGM("Reporting TMC2130 status");
+    #if ENABLED(X_IS_TMC2130)
+      tmc2130_report(stepperX, "X");
+    #endif
+    #if ENABLED(X2_IS_TMC2130)
+      tmc2130_report(stepperX2, "X2");
+    #endif
+    #if ENABLED(Y_IS_TMC2130)
+      tmc2130_report(stepperY, "Y");
+    #endif
+    #if ENABLED(Y2_IS_TMC2130)
+      tmc2130_report(stepperY2, "Y2");
+    #endif
+    #if ENABLED(Z_IS_TMC2130)
+      tmc2130_report(stepperZ, "Z");
+    #endif
+    #if ENABLED(Z2_IS_TMC2130)
+      tmc2130_report(stepperZ2, "Z2");
+    #endif
+    #if ENABLED(E0_IS_TMC2130)
+      tmc2130_report(stepperE0, "E0");
+    #endif
+    #if ENABLED(E1_IS_TMC2130)
+      tmc2130_report(stepperE1, "E1");
+    #endif
+    #if ENABLED(E2_IS_TMC2130)
+      tmc2130_report(stepperE2, "E2");
+    #endif
+    #if ENABLED(E3_IS_TMC2130)
+      tmc2130_report(stepperE3, "E3");
+    #endif
+  }
+#endif // HAVE_TMC2130DRIVER
 
 #if ENABLED(BLINKM)
 
@@ -6727,9 +6791,17 @@ void quickstop_stepper() {
 
 #if PLANNER_LEVELING
   /**
-   * M420: Enable/Disable Bed Leveling
+   * M420: Enable/Disable Bed Leveling and/or set the Z fade height.
+   *
+   *       S[bool]   Turns leveling on or off
+   *       Z[height] Sets the Z fade height (0 or none to disable)
    */
-  inline void gcode_M420() { if (code_seen('S')) set_bed_leveling_enabled(code_value_bool()); }
+  inline void gcode_M420() {
+    if (code_seen('S')) set_bed_leveling_enabled(code_value_bool());
+    #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
+      if (code_seen('Z')) set_z_fade_height(code_value_linear_units());
+    #endif
+  }
 #endif
 
 #if ENABLED(MESH_BED_LEVELING)
@@ -7218,6 +7290,13 @@ inline void gcode_M907() {
 
 #if HAS_CASE_LIGHT
 
+  uint8_t case_light_brightness = 255;
+
+  void update_case_light() {
+    digitalWrite(CASE_LIGHT_PIN, case_light_on ? HIGH : LOW);
+    analogWrite(CASE_LIGHT_PIN, case_light_on ? case_light_brightness : 0);
+  }
+
   /**
    * M355: Turn case lights on/off and set brightness
    *
@@ -7225,18 +7304,9 @@ inline void gcode_M907() {
    *   P<byte>  Set case light brightness (PWM pin required)
    */
   inline void gcode_M355() {
-    static bool case_light_on
-      #if ENABLED(CASE_LIGHT_DEFAULT_ON)
-        = true
-      #endif
-    ;
-    static uint8_t case_light_brightness = 255;
     if (code_seen('P')) case_light_brightness = code_value_byte();
-    if (code_seen('S')) {
-      case_light_on = code_value_bool();
-      digitalWrite(CASE_LIGHT_PIN, case_light_on ? HIGH : LOW);
-      analogWrite(CASE_LIGHT_PIN, case_light_on ? case_light_brightness : 0);
-    }
+    if (code_seen('S')) case_light_on = code_value_bool();
+    update_case_light();
     SERIAL_ECHO_START;
     SERIAL_ECHOPGM("Case lights ");
     case_light_on ? SERIAL_ECHOLNPGM("on") : SERIAL_ECHOLNPGM("off");
@@ -8038,14 +8108,17 @@ void process_next_command() {
       case 92: // M92: Set the steps-per-unit for one or more axes
         gcode_M92();
         break;
+      case 114: // M114: Report current position
+        gcode_M114();
+        break;
       case 115: // M115: Report capabilities
         gcode_M115();
         break;
       case 117: // M117: Set LCD message text, if possible
         gcode_M117();
         break;
-      case 114: // M114: Report current position
-        gcode_M114();
+      case 119: // M119: Report endstop states
+        gcode_M119();
         break;
       case 120: // M120: Enable endstops
         gcode_M120();
@@ -8053,9 +8126,12 @@ void process_next_command() {
       case 121: // M121: Disable endstops
         gcode_M121();
         break;
-      case 119: // M119: Report endstop states
-        gcode_M119();
-        break;
+
+      #if ENABLED(HAVE_TMC2130DRIVER)
+        case 122: // M122: Diagnose, used to debug TMC2130
+          gcode_M122();
+          break;
+      #endif
 
       #if ENABLED(ULTIPANEL)
 
@@ -8299,7 +8375,7 @@ void process_next_command() {
         break;
 
       #if ENABLED(ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED)
-        case 540:
+        case 540: // M540: Set abort on endstop hit for SD printing
           gcode_M540();
           break;
       #endif
@@ -9958,7 +10034,7 @@ void setup() {
   #endif
 
   #if HAS_CASE_LIGHT
-    setup_case_light();
+    update_case_light();
   #endif
 
   #if HAS_BED_PROBE
