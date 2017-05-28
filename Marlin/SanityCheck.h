@@ -702,19 +702,19 @@
 /**
  * Make sure auto fan pins don't conflict with the fan pin
  */
-#if HAS_AUTO_FAN
-  #if HAS_FAN0
-    #if E0_AUTO_FAN_PIN == FAN_PIN
-      #error "You cannot set E0_AUTO_FAN_PIN equal to FAN_PIN."
-    #elif E1_AUTO_FAN_PIN == FAN_PIN
-      #error "You cannot set E1_AUTO_FAN_PIN equal to FAN_PIN."
-    #elif E2_AUTO_FAN_PIN == FAN_PIN
-      #error "You cannot set E2_AUTO_FAN_PIN equal to FAN_PIN."
-    #elif E3_AUTO_FAN_PIN == FAN_PIN
-      #error "You cannot set E3_AUTO_FAN_PIN equal to FAN_PIN."
-    #endif
-  #endif
-#endif
+/* #if HAS_AUTO_FAN */
+/*   #if HAS_FAN0 */
+/*     #if E0_AUTO_FAN_PIN == FAN_PIN */
+/*       #error "You cannot set E0_AUTO_FAN_PIN equal to FAN_PIN." */
+/*     #elif E1_AUTO_FAN_PIN == FAN_PIN */
+/*       #error "You cannot set E1_AUTO_FAN_PIN equal to FAN_PIN." */
+/*     #elif E2_AUTO_FAN_PIN == FAN_PIN */
+/*       #error "You cannot set E2_AUTO_FAN_PIN equal to FAN_PIN." */
+/*     #elif E3_AUTO_FAN_PIN == FAN_PIN */
+/*       #error "You cannot set E3_AUTO_FAN_PIN equal to FAN_PIN." */
+/*     #endif */
+/*   #endif */
+/* #endif */
 
 #if HAS_FAN0 && CONTROLLERFAN_PIN == FAN_PIN
   #error "You cannot set CONTROLLERFAN_PIN equal to FAN_PIN."

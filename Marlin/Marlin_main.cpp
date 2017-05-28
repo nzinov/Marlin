@@ -542,10 +542,10 @@ static uint8_t target_extruder;
 
 #if ENABLED(DELTA)
 
-  #define SIN_1 0.8571673007021123
-  #define COS_1 0.5150380749100542
-  #define SIN_2 0.8703556959398997
-  #define COS_2 0.4924235601034671
+  #define SIN_1 0.8660254037844386
+  #define COS_1 0.5
+  #define SIN_2 0.8660254037844386
+  #define COS_2 0.5
 
   float delta[ABC],
         endstop_adj[ABC] = { 0 };
